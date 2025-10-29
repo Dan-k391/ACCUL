@@ -1,12 +1,22 @@
 cmake_minimum_required(VERSION 3.7 FATAL_ERROR)
 project(MyANTLRExample LANGUAGES C CXX)
 
-# ---------------------------------------------------------------------------
+# -------------------------------------------------------------  --------------
 # 🧱 Basic Settings
 # ---------------------------------------------------------------------------
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 add_definitions(-DANTLR4CPP_STATIC)
+
+# ---------------------------------------------------------------------------
+# 🧩 Build type and debug settings
+# ---------------------------------------------------------------------------
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Debug CACHE STRING "Choose the build type" FORCE)
+endif()
+
+# Ensure debug symbols are generated
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g")
 
 # ---------------------------------------------------------------------------
 # ⚙️ External Modules
