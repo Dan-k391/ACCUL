@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.7 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
 project(MyANTLRExample LANGUAGES C CXX)
 
 # -------------------------------------------------------------  --------------
@@ -75,17 +75,60 @@ llvm_map_components_to_libnames(LLVM_LIBS
 # ---------------------------------------------------------------------------
 # 🏗️ Build Target
 # ---------------------------------------------------------------------------
-add_executable(myparser
+add_executable(ACCUL
     src/CodegenVisitor.cpp
     src/main.cpp
     ${ANTLR_Expr_CXX_OUTPUTS}
 )
 
-target_link_libraries(myparser
+target_link_libraries(ACCUL
     PRIVATE
     antlr4_static
     ${LLVM_LIBS}
 )
+
+# ---------------------------------------------------------------------------
+# 🧪 Enable Testing
+# ---------------------------------------------------------------------------
+include(CTest)
+enable_testing()
+
+# ---------------------------------------------------------------------------
+# 🧪 Test Executable
+# ---------------------------------------------------------------------------
+add_executable(tests
+    tests/test.cpp
+    src/CodegenVisitor.cpp
+    ${ANTLR_Expr_CXX_OUTPUTS}
+)
+
+target_include_directories(tests
+    PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${ANTLR_Expr_OUTPUT_DIR}
+    ${ANTLR4_INCLUDE_DIRS}
+)
+
+target_link_libraries(tests
+    PRIVATE
+    antlr4_static
+    ${LLVM_LIBS}
+)
+
+# ---------------------------------------------------------------------------
+# 🧩 Register CTest tests
+# ---------------------------------------------------------------------------
+
+# Binary operator test: 4*(2+3)-5 = 15
+add_test(NAME BinaryOp
+         COMMAND tests "4*(2+3)-5" 15
+         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+# Unary operator test: -(3+2)*2 = -10
+add_test(NAME UnaryOp
+         COMMAND tests "(1 + 2) * -3" -9
+         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
 
 # ---------------------------------------------------------------------------
 # ✅ Summary
