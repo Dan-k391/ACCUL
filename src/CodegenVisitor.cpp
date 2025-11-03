@@ -84,6 +84,30 @@ antlrcpp::Any CodegenVisitor::visitExpr(ExprParser::ExprContext *ctx) {
         if (op == "-") return (llvm::Value*)builder.CreateSub(lhs, rhs, "subtmp");
         if (op == "*") return (llvm::Value*)builder.CreateMul(lhs, rhs, "multmp");
         if (op == "/") return (llvm::Value*)builder.CreateSDiv(lhs, rhs, "divtmp");
+        if (op == "==") {
+            auto cmp = builder.CreateICmpEQ(lhs, rhs, "eqtmp");
+            return (llvm::Value*)builder.CreateZExt(cmp, builder.getInt32Ty(), "booltmp");
+        }
+        if (op == "!=") {
+            auto cmp = builder.CreateICmpNE(lhs, rhs, "netmp");
+            return (llvm::Value*)builder.CreateZExt(cmp, builder.getInt32Ty(), "booltmp");
+        }
+        if (op == "<") {
+            auto cmp = builder.CreateICmpSLT(lhs, rhs, "lttmp");
+            return (llvm::Value*)builder.CreateZExt(cmp, builder.getInt32Ty(), "booltmp");
+        }
+        if (op == "<=") {
+            auto cmp = builder.CreateICmpSLE(lhs, rhs, "letmp");
+            return (llvm::Value*)builder.CreateZExt(cmp, builder.getInt32Ty(), "booltmp");
+        }
+        if (op == ">") {
+            auto cmp = builder.CreateICmpSGT(lhs, rhs, "gttmp");
+            return (llvm::Value*)builder.CreateZExt(cmp, builder.getInt32Ty(), "booltmp");
+        }
+        if (op == ">=") {
+            auto cmp = builder.CreateICmpSGE(lhs, rhs, "getmp");
+            return (llvm::Value*)builder.CreateZExt(cmp, builder.getInt32Ty(), "booltmp");
+        } 
     }
 
     return nullptr;
@@ -105,8 +129,11 @@ void CodegenVisitor::emitAssembly(const std::string &filename) {
     std::string CPU = "generic";
     std::string Features = "";
     TargetOptions opt;
-    auto RM = std::optional<Reloc::Model>();
-    auto TM = Target->createTargetMachine(TheTriple, CPU, Features, opt, RM);
+    auto RM = std::optional<Reloc::Model>(Reloc::PIC_);
+    auto CM = std::optional<CodeModel::Model>(CodeModel::Small);
+    CodeGenOptLevel OL = CodeGenOptLevel::Default;
+    // ✅ Enable position-independent code generation
+    auto TM = Target->createTargetMachine(TheTriple, CPU, Features, opt, RM, CM, OL, false);
 
     module->setDataLayout(TM->createDataLayout());
 

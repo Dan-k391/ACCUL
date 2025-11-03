@@ -129,6 +129,17 @@ add_test(NAME UnaryOp
          COMMAND tests "(1 + 2) * -3" -9
          WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
+# Comparison operator test: 3 + 2 == 5
+add_test(NAME ComparisonOp
+         COMMAND tests "3 + 2 == 5" 1
+         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+# Comparison operator test: 6 - 2 < 3
+add_test(NAME ComparisonOpFalse
+         COMMAND tests "6 - 2 < 3" 0
+         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+
 
 # ---------------------------------------------------------------------------
 # ✅ Summary
