@@ -35,14 +35,14 @@ set(ANTLR4CPP_JAR_LOCATION "${ANTLR_EXECUTABLE}")
 
 find_package(ANTLR REQUIRED)
 
-antlr_target(Expr
-    ${CMAKE_CURRENT_SOURCE_DIR}/grammar/Expr.g4
+antlr_target(C
+    ${CMAKE_CURRENT_SOURCE_DIR}/grammar/C.g4
     VISITOR
     COMBINED
 )
 
 include_directories(
-    "${ANTLR_Expr_OUTPUT_DIR}"
+    "${ANTLR_C_OUTPUT_DIR}"
     "${ANTLR4_INCLUDE_DIRS}"
 )
 
@@ -78,7 +78,7 @@ llvm_map_components_to_libnames(LLVM_LIBS
 add_executable(ACCUL
     src/CodegenVisitor.cpp
     src/main.cpp
-    ${ANTLR_Expr_CXX_OUTPUTS}
+    ${ANTLR_C_CXX_OUTPUTS}
 )
 
 target_link_libraries(ACCUL
@@ -99,13 +99,13 @@ enable_testing()
 add_executable(tests
     tests/test.cpp
     src/CodegenVisitor.cpp
-    ${ANTLR_Expr_CXX_OUTPUTS}
+    ${ANTLR_C_CXX_OUTPUTS}
 )
 
 target_include_directories(tests
     PRIVATE
     ${CMAKE_SOURCE_DIR}/src
-    ${ANTLR_Expr_OUTPUT_DIR}
+    ${ANTLR_C_OUTPUT_DIR}
     ${ANTLR4_INCLUDE_DIRS}
 )
 
@@ -119,12 +119,12 @@ target_link_libraries(tests
 # 🧩 Register CTest tests
 # ---------------------------------------------------------------------------
 
-# Binary operator test: 4*(2+3)-5 = 15
+# Binary operator test: 4 * (2 + 3) - 5 = 15
 add_test(NAME BinaryOp
-         COMMAND tests "4*(2+3)-5" 15
+         COMMAND tests "4 * (2 + 3) - 5" 15
          WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
-# Unary operator test: -(3+2)*2 = -10
+# Unary operator test: -(1+2)*-3 = -9
 add_test(NAME UnaryOp
          COMMAND tests "(1 + 2) * -3" -9
          WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
@@ -138,8 +138,6 @@ add_test(NAME ComparisonOp
 add_test(NAME ComparisonOpFalse
          COMMAND tests "6 - 2 < 3" 0
          WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
-
-
 
 # ---------------------------------------------------------------------------
 # ✅ Summary

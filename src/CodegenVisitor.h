@@ -1,6 +1,4 @@
 #pragma once
-#include "ExprBaseVisitor.h"
-#include "ExprParser.h"
 #include <string>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/LLVMContext.h>
@@ -15,8 +13,11 @@
 #include <llvm/TargetParser/Triple.h>
 #include <llvm/TargetParser/Host.h>
 #include <llvm/Support/raw_ostream.h>
+#include "CBaseVisitor.h"
+#include "CParser.h"
 
-class CodegenVisitor : public ExprBaseVisitor {
+
+class CodegenVisitor : public CBaseVisitor {
 public:
     llvm::LLVMContext context;
     llvm::IRBuilder<> builder;
@@ -25,8 +26,15 @@ public:
     llvm::Value *lastValue = nullptr;
 
     CodegenVisitor();
-    antlrcpp::Any visitProg(ExprParser::ProgContext *ctx) override;
-    antlrcpp::Any visitExpr(ExprParser::ExprContext *ctx) override;
+    antlrcpp::Any visitProg(CParser::ProgContext *ctx) override;
+    antlrcpp::Any visitEqExpr(CParser::EqExprContext *ctx) override;
+    antlrcpp::Any visitRelExpr(CParser::RelExprContext *ctx) override;
+    antlrcpp::Any visitAddSubExpr(CParser::AddSubExprContext *ctx) override;
+    antlrcpp::Any visitMulDivExpr(CParser::MulDivExprContext *ctx) override;
+    antlrcpp::Any visitUnaryExpr(CParser::UnaryExprContext *ctx) override;
+    antlrcpp::Any visitIntLiteral(CParser::IntLiteralContext *ctx) override;
+    antlrcpp::Any visitVarRef(CParser::VarRefContext *ctx) override;
+    antlrcpp::Any visitParenExpr(CParser::ParenExprContext *ctx) override;
     void emitAssembly(const std::string &filename);
     void dumpIR();
 };

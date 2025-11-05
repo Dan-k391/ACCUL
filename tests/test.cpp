@@ -1,5 +1,5 @@
-#include "ExprLexer.h"
-#include "ExprParser.h"
+#include "CLexer.h"
+#include "CParser.h"
 #include "CodegenVisitor.h"
 #include <antlr4-runtime.h>
 
@@ -41,9 +41,9 @@ int main(int argc, char *argv[]) {
     const int expected = std::stoi(argv[2]);
 
     antlr4::ANTLRInputStream stream(expr);
-    ExprLexer lexer(&stream);
+    CLexer lexer(&stream);
     antlr4::CommonTokenStream tokens(&lexer);
-    ExprParser parser(&tokens);
+    CParser parser(&tokens);
 
     CodegenVisitor visitor;
     visitor.visit(parser.prog());

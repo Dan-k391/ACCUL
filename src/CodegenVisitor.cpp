@@ -1,20 +1,18 @@
 #include "CodegenVisitor.h"
 
-using namespace llvm;
-
 CodegenVisitor::CodegenVisitor() : builder(context) {
-    module = std::make_unique<Module>("expr_module", context);
+    module = std::make_unique<llvm::Module>("expr_module", context);
 
     // int main()
-    FunctionType *funcType = FunctionType::get(builder.getInt32Ty(), false);
-    Function *mainFunc = Function::Create(funcType, Function::ExternalLinkage, "main", module.get());
-    BasicBlock *entry = BasicBlock::Create(context, "entry", mainFunc);
+    llvm::FunctionType *funcType = llvm::FunctionType::get(builder.getInt32Ty(), false);
+    llvm::Function *mainFunc = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, "main", module.get());
+    llvm::BasicBlock *entry = llvm::BasicBlock::Create(context, "entry", mainFunc);
     builder.SetInsertPoint(entry);
     currentFunction = mainFunc;
     lastValue = nullptr;
 }
 
-antlrcpp::Any CodegenVisitor::visitProg(ExprParser::ProgContext *ctx) {
+antlrcpp::Any CodegenVisitor::CodegenVisitor::visitProg(CParser::ProgContext *ctx) {
     // Evaluate the top-level expression
     lastValue = std::any_cast<llvm::Value*>(visit(ctx->expr()));
 
@@ -50,106 +48,108 @@ antlrcpp::Any CodegenVisitor::visitProg(ExprParser::ProgContext *ctx) {
     return lastValue;
 }
 
-antlrcpp::Any CodegenVisitor::visitExpr(ExprParser::ExprContext *ctx) {
-    // Case 1: parentheses — '(' expr ')'
-    if (ctx->children.size() == 3 &&
-        ctx->children.front()->getText() == "(" &&
-        ctx->children.back()->getText() == ")") {
-        return visit(ctx->expr(0)); // just evaluate inner expression
-    }
+antlrcpp::Any CodegenVisitor::visitEqExpr(CParser::EqExprContext *ctx) {
+    auto L = std::any_cast<llvm::Value*>(visit(ctx->expr(0)));
+    auto R = std::any_cast<llvm::Value*>(visit(ctx->expr(1)));
+    std::string op = ctx->op->getText();
+    llvm::Value* cmp = nullptr;
+    if (op == "==") cmp = builder.CreateICmpEQ(L, R, "eqtmp");
+    if (op == "!=") cmp = builder.CreateICmpNE(L, R, "netmp");
+    return (llvm::Value*)builder.CreateZExt(cmp, builder.getInt64Ty(), "booltmp");
+}
 
-    // Case 2: integer literal
-    if (ctx->INT()) {
-        int val = std::stoi(ctx->INT()->getText());
-        return (llvm::Value*)builder.getInt32(val);
-    }
+// <, >, <=, >=
+antlrcpp::Any CodegenVisitor::visitRelExpr(CParser::RelExprContext *ctx) {
+    auto L = std::any_cast<llvm::Value*>(visit(ctx->expr(0)));
+    auto R = std::any_cast<llvm::Value*>(visit(ctx->expr(1)));
+    std::string op = ctx->op->getText();
+    llvm::Value* cmp = nullptr;
+    if (op == "<")  cmp = builder.CreateICmpSLT(L, R, "lttmp");
+    if (op == "<=") cmp = builder.CreateICmpSLE(L, R, "letmp");
+    if (op == ">")  cmp = builder.CreateICmpSGT(L, R, "gttmp");
+    if (op == ">=") cmp = builder.CreateICmpSGE(L, R, "getmp");
+    return (llvm::Value*)builder.CreateZExt(cmp, builder.getInt64Ty(), "booltmp");
+}
 
-    // Case 3: unary operations ('-' expr | '+' expr)
-    if (ctx->children.size() == 2 && (ctx->children[0]->getText() == "-" || ctx->children[0]->getText() == "+")) {
-        auto val = std::any_cast<llvm::Value*>(visit(ctx->expr(0)));
-        if (ctx->children[0]->getText() == "-") {
-            auto zero = builder.getInt32(0);
-            return (llvm::Value*)builder.CreateSub(zero, val, "negtmp");
-        }
-        return val; // unary +
-    }
+// + and -
+antlrcpp::Any CodegenVisitor::visitAddSubExpr(CParser::AddSubExprContext *ctx) {
+    auto L = std::any_cast<llvm::Value*>(visit(ctx->expr(0)));
+    auto R = std::any_cast<llvm::Value*>(visit(ctx->expr(1)));
+    if (ctx->op->getText() == "+")
+        return (llvm::Value*)builder.CreateAdd(L, R, "addtmp");
+    else
+        return (llvm::Value*)builder.CreateSub(L, R, "subtmp");
+}
 
-    // Case 4: binary operations (expr op expr)
-    if (ctx->expr().size() == 2) {
-        auto lhs = std::any_cast<llvm::Value*>(visit(ctx->expr(0)));
-        auto rhs = std::any_cast<llvm::Value*>(visit(ctx->expr(1)));
-        std::string op = ctx->children[1]->getText();
+// * and /
+antlrcpp::Any CodegenVisitor::visitMulDivExpr(CParser::MulDivExprContext *ctx) {
+    auto L = std::any_cast<llvm::Value*>(visit(ctx->expr(0)));
+    auto R = std::any_cast<llvm::Value*>(visit(ctx->expr(1)));
+    if (ctx->op->getText() == "*")
+        return (llvm::Value*)builder.CreateMul(L, R, "multmp");
+    else
+        return (llvm::Value*)builder.CreateSDiv(L, R, "divtmp");
+}
 
-        if (op == "+") return (llvm::Value*)builder.CreateAdd(lhs, rhs, "addtmp");
-        if (op == "-") return (llvm::Value*)builder.CreateSub(lhs, rhs, "subtmp");
-        if (op == "*") return (llvm::Value*)builder.CreateMul(lhs, rhs, "multmp");
-        if (op == "/") return (llvm::Value*)builder.CreateSDiv(lhs, rhs, "divtmp");
-        if (op == "==") {
-            auto cmp = builder.CreateICmpEQ(lhs, rhs, "eqtmp");
-            return (llvm::Value*)builder.CreateZExt(cmp, builder.getInt32Ty(), "booltmp");
-        }
-        if (op == "!=") {
-            auto cmp = builder.CreateICmpNE(lhs, rhs, "netmp");
-            return (llvm::Value*)builder.CreateZExt(cmp, builder.getInt32Ty(), "booltmp");
-        }
-        if (op == "<") {
-            auto cmp = builder.CreateICmpSLT(lhs, rhs, "lttmp");
-            return (llvm::Value*)builder.CreateZExt(cmp, builder.getInt32Ty(), "booltmp");
-        }
-        if (op == "<=") {
-            auto cmp = builder.CreateICmpSLE(lhs, rhs, "letmp");
-            return (llvm::Value*)builder.CreateZExt(cmp, builder.getInt32Ty(), "booltmp");
-        }
-        if (op == ">") {
-            auto cmp = builder.CreateICmpSGT(lhs, rhs, "gttmp");
-            return (llvm::Value*)builder.CreateZExt(cmp, builder.getInt32Ty(), "booltmp");
-        }
-        if (op == ">=") {
-            auto cmp = builder.CreateICmpSGE(lhs, rhs, "getmp");
-            return (llvm::Value*)builder.CreateZExt(cmp, builder.getInt32Ty(), "booltmp");
-        } 
-    }
+// unary + / -
+antlrcpp::Any CodegenVisitor::visitUnaryExpr(CParser::UnaryExprContext *ctx) {
+    auto val = std::any_cast<llvm::Value*>(visit(ctx->expr()));
+    if (ctx->op->getText() == "-")
+        return (llvm::Value*)builder.CreateNeg(val, "negtmp");
+    return val;
+}
 
-    return nullptr;
+// integer literal
+antlrcpp::Any CodegenVisitor::visitIntLiteral(CParser::IntLiteralContext *ctx) {
+    long long v = std::stoll(ctx->INT()->getText());
+    return (llvm::Value*)builder.getInt64(v);
+}
+
+antlrcpp::Any CodegenVisitor::visitVarRef(CParser::VarRefContext *ctx) {
+}
+
+// ( expr )
+antlrcpp::Any CodegenVisitor::visitParenExpr(CParser::ParenExprContext *ctx) {
+    return visit(ctx->expr());
 }
 
 void CodegenVisitor::emitAssembly(const std::string &filename) {
-    InitializeNativeTarget();
-    InitializeNativeTargetAsmPrinter();
-    InitializeNativeTargetAsmParser();
+    llvm::InitializeNativeTarget();
+    llvm::InitializeNativeTargetAsmPrinter();
+    llvm::InitializeNativeTargetAsmParser();
 
-    std::string TripleStr = sys::getDefaultTargetTriple();
-    Triple TheTriple(TripleStr);
+    std::string TripleStr = llvm::sys::getDefaultTargetTriple();
+    llvm::Triple TheTriple(TripleStr);
     module->setTargetTriple(TheTriple);
 
     std::string Error;
-    const Target *Target = TargetRegistry::lookupTarget(TripleStr, Error);
-    if (!Target) { errs() << Error << "\n"; return; }
+    const llvm::Target *Target = llvm::TargetRegistry::lookupTarget(TripleStr, Error);
+    if (!Target) { llvm::errs() << Error << "\n"; return; }
 
     std::string CPU = "generic";
     std::string Features = "";
-    TargetOptions opt;
-    auto RM = std::optional<Reloc::Model>(Reloc::PIC_);
-    auto CM = std::optional<CodeModel::Model>(CodeModel::Small);
-    CodeGenOptLevel OL = CodeGenOptLevel::Default;
+    llvm::TargetOptions opt;
+    auto RM = std::optional<llvm::Reloc::Model>(llvm::Reloc::PIC_);
+    auto CM = std::optional<llvm::CodeModel::Model>(llvm::CodeModel::Small);
+    llvm::CodeGenOptLevel OL = llvm::CodeGenOptLevel::Default;
     // ✅ Enable position-independent code generation
     auto TM = Target->createTargetMachine(TheTriple, CPU, Features, opt, RM, CM, OL, false);
 
     module->setDataLayout(TM->createDataLayout());
 
     std::error_code EC;
-    llvm::raw_fd_ostream dest(filename, EC, sys::fs::OF_None);
-    if (EC) { errs() << "Could not open file: " << EC.message() << "\n"; return; }
+    llvm::raw_fd_ostream dest(filename, EC, llvm::sys::fs::OF_None);
+    if (EC) { llvm::errs() << "Could not open file: " << EC.message() << "\n"; return; }
 
-    legacy::PassManager pm;
-    if (TM->addPassesToEmitFile(pm, dest, nullptr, CodeGenFileType::AssemblyFile)) {
-        errs() << "TargetMachine can't emit this file type\n";
+    llvm::legacy::PassManager pm;
+    if (TM->addPassesToEmitFile(pm, dest, nullptr, llvm::CodeGenFileType::AssemblyFile)) {
+        llvm::errs() << "TargetMachine can't emit this file type\n";
         return;
     }
     pm.run(*module);
     dest.flush();
 
-    outs() << "✅ Emitted assembly to " << filename << "\n";
+    llvm::outs() << "✅ Emitted assembly to " << filename << "\n";
 }
 
 void CodegenVisitor::dumpIR() {
