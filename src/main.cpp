@@ -5,7 +5,7 @@
 #include <iostream>
 
 int main() {
-    std::string input = "(1 + 2) * -3";
+    std::string input = "a = 5; a;";
     antlr4::ANTLRInputStream stream(input);
     CLexer lexer(&stream);
     antlr4::CommonTokenStream tokens(&lexer);
@@ -17,7 +17,7 @@ int main() {
     CodegenVisitor visitor;
     visitor.visit(tree);
     visitor.dumpIR();
-    visitor.emitAssembly("output.s");
+    visitor.emitAssembly("../build/output.s");
 
     return 0;
 }

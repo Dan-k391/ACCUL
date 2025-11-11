@@ -13,8 +13,9 @@ CodegenVisitor::CodegenVisitor() : builder(context) {
 }
 
 antlrcpp::Any CodegenVisitor::CodegenVisitor::visitProg(CParser::ProgContext *ctx) {
-    // Evaluate the top-level expression
-    lastValue = std::any_cast<llvm::Value*>(visit(ctx->expr()));
+    for (auto exprCtx : ctx->expr()) {
+        lastValue = std::any_cast<llvm::Value*>(visit(exprCtx));
+    }
 
     // Ensure we’re inserting into main’s entry block
     if (!builder.GetInsertBlock() || builder.GetInsertBlock()->getParent() != currentFunction) {
@@ -105,7 +106,57 @@ antlrcpp::Any CodegenVisitor::visitIntLiteral(CParser::IntLiteralContext *ctx) {
     return (llvm::Value*)builder.getInt64(v);
 }
 
+static llvm::AllocaInst* getOrCreateAlloca(llvm::Function *fn,
+                                           llvm::Type *ty,
+                                           const std::string &name,
+                                           std::map<std::string, llvm::AllocaInst*> &table) {
+    // 1️⃣ Check if variable already exists
+    auto it = table.find(name);
+    if (it != table.end())
+        return it->second;
+    
+    // 2️⃣ Otherwise create in entry block
+    llvm::IRBuilder<> entryBuilder(&fn->getEntryBlock(),
+                                   fn->getEntryBlock().begin());
+    llvm::AllocaInst* alloca = entryBuilder.CreateAlloca(ty, nullptr, name);
+
+    table[name] = alloca;
+    return alloca;
+}
+
+antlrcpp::Any CodegenVisitor::visitAssignExpr(CParser::AssignExprContext *ctx) {
+    // LHS must be VarRef — validate via RTTI or ID() presence
+    auto *lhs = ctx->expr(0);
+    auto *varCtx = dynamic_cast<CParser::VarRefContext*>(lhs);
+    if (!varCtx) {
+        llvm::errs() << "Left-hand side of assignment must be a variable\n";
+        return nullptr;
+    }
+    const std::string name = varCtx->ID()->getText();
+
+    // RHS value
+    llvm::Value *rhs = std::any_cast<llvm::Value*>(visit(ctx->expr(1)));
+
+    // Ensure storage exists (alloca in entry)
+    auto *fn = builder.GetInsertBlock()->getParent();
+    auto it = locals.find(name);
+    llvm::AllocaInst *alloca = (it == locals.end() || !it->second)
+        ? (locals[name] = getOrCreateAlloca(fn, builder.getInt64Ty(), name, locals))
+        : it->second;
+
+    builder.CreateStore(rhs, alloca);
+    return rhs; // enable a = b = 5;
+}
+
 antlrcpp::Any CodegenVisitor::visitVarRef(CParser::VarRefContext *ctx) {
+    const std::string name = ctx->ID()->getText();
+    auto it = locals.find(name);
+    if (it == locals.end() || it->second == nullptr) {
+        llvm::errs() << "Undefined variable: " << name << "\n";
+        return nullptr;
+    }
+    auto *alloca = it->second; // always an address
+    return (llvm::Value*)builder.CreateLoad(builder.getInt64Ty(), alloca, name);
 }
 
 // ( expr )

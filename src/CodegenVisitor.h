@@ -15,6 +15,7 @@
 #include <llvm/Support/raw_ostream.h>
 #include "CBaseVisitor.h"
 #include "CParser.h"
+#include "llvm/IR/Instructions.h"
 
 
 class CodegenVisitor : public CBaseVisitor {
@@ -24,6 +25,7 @@ public:
     std::unique_ptr<llvm::Module> module;
     llvm::Function *currentFunction = nullptr;
     llvm::Value *lastValue = nullptr;
+    std::map<std::string, llvm::AllocaInst*> locals;
 
     CodegenVisitor();
     antlrcpp::Any visitProg(CParser::ProgContext *ctx) override;
@@ -33,6 +35,7 @@ public:
     antlrcpp::Any visitMulDivExpr(CParser::MulDivExprContext *ctx) override;
     antlrcpp::Any visitUnaryExpr(CParser::UnaryExprContext *ctx) override;
     antlrcpp::Any visitIntLiteral(CParser::IntLiteralContext *ctx) override;
+    antlrcpp::Any visitAssignExpr(CParser::AssignExprContext *ctx) override;
     antlrcpp::Any visitVarRef(CParser::VarRefContext *ctx) override;
     antlrcpp::Any visitParenExpr(CParser::ParenExprContext *ctx) override;
     void emitAssembly(const std::string &filename);
